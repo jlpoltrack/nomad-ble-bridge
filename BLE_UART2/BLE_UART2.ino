@@ -37,16 +37,20 @@ uint8_t txValue = 0;
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
-#define MTU_SIZE 64
+#define MTU_SIZE 32. // seems to be ideal, 64 struggled to connect at times
 
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
+      Serial0.setRxBufferSize(8192);
+      Serial0.setTxBufferSize(8192);
+      Serial0.begin(230400, SERIAL_8N1, 20, 21);
     };
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
+      Serial0.end();
     }
 };
 
@@ -63,10 +67,6 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
-
-  Serial0.setRxBufferSize(32768);
-  Serial0.setTxBufferSize(32768);
-  Serial0.begin(230400, SERIAL_8N1, 20, 21);
 
   // Create the BLE Device
   BLEDevice::init("mLRS BLE Bridge");
