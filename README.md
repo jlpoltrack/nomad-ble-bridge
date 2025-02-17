@@ -1,4 +1,4 @@
-# Nomad BLE Brdige
+# Nomad BLE Bridge
 
 ## Details
 
