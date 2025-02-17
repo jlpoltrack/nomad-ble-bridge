@@ -1,4 +1,5 @@
 // Modified version of example: https://github.com/espressif/arduino-esp32/blob/master/libraries/BLE/examples/UART/UART.ino
+// Tested on Arduino ESP Core 2.0.17
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -54,10 +55,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
     std::string rxValue = pCharacteristic->getValue();
     size_t payloadLength = rxValue.length();
-    if (payloadLength > 0)
-    {
-      Serial0.write((uint8_t *)rxValue.c_str(), payloadLength);
-    }
+    if (payloadLength > 0) { Serial0.write((uint8_t *)rxValue.c_str(), payloadLength); }
   }
   
 };
@@ -69,19 +67,19 @@ void setup()
 
   // Create BLE Device, set MTU
   BLEDevice::init("mLRS BLE Bridge");
-  BLEDevice::setMTU(515); // plenty of headroom
+  BLEDevice::setMTU(515); // try a big value, will get negotiated
 
   // Set BLE Power, P12 = 12 dBm
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P12);
 
-  // Create BLE Server
+  // Create BLE Server, Add Callbacks
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
   // Create BLE Service
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
-  // Create BLE Characteristics
+  // Create BLE Characteristics, Add Callback
   pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ);
   pTxCharacteristic->addDescriptor(new BLE2902());
   BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
@@ -115,7 +113,6 @@ void loop()
 
     if (Serial0.available() >= 32)
     {
-
       // Calculate the number of bytes to read
       uint16_t availableBytes = Serial0.available();
       uint16_t bytesToRead = min(availableBytes, (uint16_t)(actualMTU - 3)); // Limit to negotiated MTU - 3 bytes for header
@@ -129,17 +126,14 @@ void loop()
       // Send the data over BLE as a single chunk
       pTxCharacteristic->setValue(buffer, bytesToRead);
       pTxCharacteristic->notify();
-
-      // Serial.println(bytesToRead);
     }
   }
 
-  // disconnecting
   if (!deviceConnected)
   {
-    delay(500);                  // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising(); // restart advertising
+    delay(500);  // give the bluetooth stack a breather
     Serial0.end();
+    pServer->startAdvertising();
     Serial.println("Advertising");
     delay(4500); // less spam
   }
