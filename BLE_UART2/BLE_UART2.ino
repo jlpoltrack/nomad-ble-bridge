@@ -33,10 +33,12 @@ class MyServerCallbacks : public BLEServerCallbacks
     mtuChecked = false;
     Serial.println("D");
   }
+
 };
 
 class MyCallbacks : public BLECharacteristicCallbacks
 {
+
   void onWrite(BLECharacteristic *pCharacteristic)
   {
     if (!serialStarted)
@@ -57,6 +59,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
       Serial0.write((uint8_t *)rxValue.c_str(), payloadLength);
     }
   }
+  
 };
 
 void setup()
