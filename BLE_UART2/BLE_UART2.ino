@@ -1,5 +1,7 @@
 // Modified version of example: https://github.com/espressif/arduino-esp32/blob/master/libraries/BLE/examples/UART/UART.ino
 // Tested on Arduino ESP Core 2.0.17
+// Make sure that 'USB CDC On Boot' is set to Enabled
+
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -15,7 +17,7 @@ bool deviceConnected = false;
 bool serialStarted = false;
 bool mtuChecked = false;
 uint16_t connId;
-uint16_t actualMTU;
+uint16_t negotiatedMTU;
 
 class MyServerCallbacks : public BLEServerCallbacks
 {
@@ -42,11 +44,13 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
   void onWrite(BLECharacteristic *pCharacteristic)
   {
+
+    // only start the serial once some data has come in, helps initial connection
     if (!serialStarted)
     {
       serialStarted = true;
 
-      Serial0.setRxBufferSize(16384); // really just for initial connection, actual use much less
+      Serial0.setRxBufferSize(16384); // really just for initial connection, steady state use much less
       Serial0.setTxBufferSize(512);   // allow for MAVFTP messages
       // Serial0.begin(230400, SERIAL_8N1, 16, 17);  // for S3 board
       Serial0.begin(115200, SERIAL_8N1, 20, 21); // for C3 bridge
@@ -54,7 +58,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
     }
 
     std::string rxValue = pCharacteristic->getValue();
-    size_t payloadLength = rxValue.length();
+    uint32_t payloadLength = rxValue.length();
     if (payloadLength > 0) { Serial0.write((uint8_t *)rxValue.c_str(), payloadLength); }
   }
   
@@ -62,12 +66,12 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(115200);  // this is the USB serial
   Serial.println("Setup Started");
 
   // Create BLE Device, set MTU
   BLEDevice::init("mLRS BLE Bridge");
-  BLEDevice::setMTU(515); // try a big value, will get negotiated
+  BLEDevice::setMTU(1024); // try a big value, will get negotiated during connection
 
   // Set BLE Power, P12 = 12 dBm
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P12);
@@ -103,19 +107,20 @@ void loop()
     if (!mtuChecked)
     {
       mtuChecked = true;
-      delay(500);
+      delay(125);
       Serial.print("Conn ID from the onConnect Callback: ");
       Serial.print(connId);
-      Serial.print(", MTU: ");
-      actualMTU = pServer->getPeerMTU(connId);
-      Serial.println(actualMTU);
+      Serial.print(", Negotiated MTU: ");
+      negotiatedMTU = pServer->getPeerMTU(connId);
+      Serial.println(negotiatedMTU);
+      delay(125);
     }
 
     if (Serial0.available() >= 32)
     {
       // Calculate the number of bytes to read
       uint16_t availableBytes = Serial0.available();
-      uint16_t bytesToRead = min(availableBytes, (uint16_t)(actualMTU - 3)); // Limit to negotiated MTU - 3 bytes for header
+      uint16_t bytesToRead = min(availableBytes, (uint16_t)(negotiatedMTU - 3)); // Limit to negotiated MTU - 3 bytes for header
 
       // Create a buffer to hold the data
       uint8_t buffer[bytesToRead];
