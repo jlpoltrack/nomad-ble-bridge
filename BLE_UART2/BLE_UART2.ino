@@ -11,6 +11,14 @@
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
+#if defined(CONFIG_IDF_TARGET_ESP32)
+    #define SERIAL Serial1
+#elif defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32S3)
+    #define SERIAL Serial0
+#else
+    #error "Unsupported ESP32 variant"
+#endif
+
 BLEServer *pServer = NULL;
 BLECharacteristic *pTxCharacteristic;
 bool deviceConnected = false;
@@ -50,16 +58,16 @@ class MyCallbacks : public BLECharacteristicCallbacks
     {
       serialStarted = true;
 
-      Serial0.setRxBufferSize(16384); // really just for initial connection, steady state use much less
-      Serial0.setTxBufferSize(512);   // allow for MAVFTP messages
-      // Serial0.begin(230400, SERIAL_8N1, 16, 17);  // for S3 board
-      Serial0.begin(115200, SERIAL_8N1, 20, 21); // for C3 bridge
+      SERIAL.setRxBufferSize(16384); // really just for initial connection, steady state use much less
+      SERIAL.setTxBufferSize(512);   // allow for MAVFTP messages
+      SERIAL.begin(230400, SERIAL_8N1, 26, 27);  // for S3 board
+      //SERIAL.begin(115200, SERIAL_8N1, 20, 21); // for C3 bridge
       Serial.println("S0");
     }
 
     std::string rxValue = pCharacteristic->getValue();
     uint32_t payloadLength = rxValue.length();
-    if (payloadLength > 0) { Serial0.write((uint8_t *)rxValue.c_str(), payloadLength); }
+    if (payloadLength > 0) { SERIAL.write((uint8_t *)rxValue.c_str(), payloadLength); }
   }
   
 };
@@ -73,8 +81,8 @@ void setup()
   BLEDevice::init("mLRS BLE Bridge");
   BLEDevice::setMTU(1024); // try a big value, will get negotiated during connection
 
-  // Set BLE Power, P12 = 12 dBm
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P12);
+  // Set BLE Power, LVL_P9 = 9 dBm
+  BLEDevice::setPower(ESP_PWR_LVL_P9, ESP_BLE_PWR_TYPE_DEFAULT);
 
   // Create BLE Server, Add Callbacks
   pServer = BLEDevice::createServer();
@@ -116,17 +124,17 @@ void loop()
       delay(125);
     }
 
-    if (Serial0.available() >= 32)
+    if (SERIAL.available() >= 32)
     {
       // Calculate the number of bytes to read
-      uint16_t availableBytes = Serial0.available();
+      uint16_t availableBytes = SERIAL.available();
       uint16_t bytesToRead = min(availableBytes, (uint16_t)(negotiatedMTU - 3)); // Limit to negotiated MTU - 3 bytes for header
 
       // Create a buffer to hold the data
       uint8_t buffer[bytesToRead];
 
       // Read data into the buffer
-      Serial0.readBytes(buffer, bytesToRead);
+      SERIAL.readBytes(buffer, bytesToRead);
 
       // Send the data over BLE as a single chunk
       pTxCharacteristic->setValue(buffer, bytesToRead);
@@ -137,7 +145,7 @@ void loop()
   if (!deviceConnected)
   {
     delay(500);  // give the bluetooth stack a breather
-    Serial0.end();
+    SERIAL.end();
     pServer->startAdvertising();
     Serial.println("Advertising");
     delay(4500); // less spam
