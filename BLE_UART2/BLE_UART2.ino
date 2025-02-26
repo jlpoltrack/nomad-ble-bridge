@@ -58,14 +58,16 @@ class MyCallbacks : public BLECharacteristicCallbacks
     {
       serialStarted = true;
 
-      SERIAL.setRxBufferSize(16384); // really just for initial connection, steady state use much less
+      SERIAL.setRxBufferSize(32768); // really just for initial connection, steady state use much less
       SERIAL.setTxBufferSize(512);   // allow for MAVFTP messages
-      SERIAL.begin(230400, SERIAL_8N1, 26, 27);  // for S3 board
-      //SERIAL.begin(115200, SERIAL_8N1, 20, 21); // for C3 bridge
-      Serial.println("S0");
+      SERIAL.begin(230400, SERIAL_8N1, 16, 17);  // for S3 board
+      //SERIAL.begin(0, SERIAL_8N1, 20, 21); // for C3 bridge, 0 means autobaud only supported in 2.0.17
+      Serial.print("S: ");
+      Serial.println(SERIAL.baudRate());
     }
 
-    std::string rxValue = pCharacteristic->getValue();
+    //std::string rxValue = pCharacteristic->getValue();  // use for 2.0.17 
+    String rxValue = pCharacteristic->getValue();  // use for 3.X
     uint32_t payloadLength = rxValue.length();
     if (payloadLength > 0) { SERIAL.write((uint8_t *)rxValue.c_str(), payloadLength); }
   }
